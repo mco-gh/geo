@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Geo — flashcards for the world’s countries, capitals, seas, islands and more</title>
+  <meta name="description" content="Map flashcards with spaced repetition: learn the world’s countries and capitals, oceans and seas, lakes, islands, mountains and deserts. Works offline; your progress stays on your device.">
+  <meta name="color-scheme" content="light dark">
+  <script>
+    try { document.querySelector('meta[name="color-scheme"]').content = JSON.parse(localStorage.getItem('geo:scheme')) ?? 'light dark'; } catch {}
+  </script>
+  <meta name="theme-color" content="#f6f1e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14110e" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Geo">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-wrap">
+      <a class="brand" href="#study">
+        <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="7" y="3" width="20" height="24" rx="5" class="logo-back"/>
+          <rect x="4" y="6" width="20" height="24" rx="5" class="logo-front"/>
+          <circle cx="14" cy="18" r="6.5" fill="none" stroke="#fff" stroke-width="1.8"/>
+          <ellipse cx="14" cy="18" rx="2.8" ry="6.5" fill="none" stroke="#fff" stroke-width="1.5"/>
+          <path d="M7.5 18h13" stroke="#fff" stroke-width="1.5"/>
+        </svg>
+        <span>Geo</span>
+      </a>
+      <p class="credit">Made with ❤️ by <a href="https://mco.dev/">Marc</a></p>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" type="button" command="show-modal" commandfor="about" aria-label="About" title="About">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.75" r="0.6" fill="currentColor"/></svg>
+      </button>
+      <button class="icon-btn" type="button" command="show-modal" commandfor="settings" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4.5v5M6 14.5v5" /><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="Geo">
+    <a href="#study" data-tab="study">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="13" height="16" rx="3"/><path d="M4 8v10a3 3 0 0 0 3 3h8"/></svg>
+      <span>Study</span>
+    </a>
+    <a href="#list" data-tab="list">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      <span>List</span>
+    </a>
+    <a href="#progress" data-tab="progress">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-6M12 20V4M19 20v-9"/></svg>
+      <span>Progress</span>
+    </a>
+  </nav>
+
+  <main id="main">
+    <p class="tagline">Learn the world’s countries, capitals, seas, islands and more, in just a few minutes a day.</p>
+    <p class="load-error" id="load-error" role="alert" hidden>Could not load the maps. Check your connection and reload.</p>
+
+    <!-- Study -->
+    <section class="view" id="view-study" aria-labelledby="h-study" hidden>
+      <h1 class="visually-hidden" id="h-study">Study</h1>
+
+      <div class="session" id="session">
+        <div class="session-head">
+          <ul class="chips">
+            <li class="chip chip-new"><b id="count-new">0</b> New</li>
+            <li class="chip chip-learning"><b id="count-learning">0</b> Learning</li>
+            <li class="chip chip-review"><b id="count-review">0</b> Review</li>
+          </ul>
+          <button class="ghost-btn" type="button" id="undo" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+            Undo
+          </button>
+        </div>
+        <progress class="bar" id="session-bar" value="0" max="1" aria-label="Today’s session progress"></progress>
+
+        <div class="stage">
+          <div class="card" id="card">
+            <div class="card-inner">
+              <div class="face front" id="face-front">
+                <span class="badge" id="badge-new" hidden>New</span>
+                <svg class="map" id="map-front" role="img" aria-label="Map with one place highlighted"></svg>
+                <p class="question" id="question"></p>
+                <p class="hint">Tap the card or press Space to reveal</p>
+              </div>
+              <div class="face back" id="face-back" inert>
+                <svg class="map map-small" id="map-back" aria-hidden="true"></svg>
+                <span class="kind" id="kind"></span>
+                <p class="name" id="name"></p>
+                <p class="capital" id="capital" hidden><span class="capital-label">Capital</span> <span id="capital-name"></span></p>
+                <p class="note" id="note"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary-btn" type="button" id="show">Show answer</button>
+          <div class="ratings" id="ratings" role="group" aria-label="How well did you know it?" hidden>
+            <button type="button" class="rate rate-1" data-rating="1"><span>Again</span><small></small><kbd>1</kbd></button>
+            <button type="button" class="rate rate-2" data-rating="2"><span>Hard</span><small></small><kbd>2</kbd></button>
+            <button type="button" class="rate rate-3" data-rating="3"><span>Good</span><small></small><kbd>3</kbd></button>
+            <button type="button" class="rate rate-4" data-rating="4"><span>Easy</span><small></small><kbd>4</kbd></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="done" id="done" hidden>
+        <svg class="done-mark" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="28"/><path d="m20 33 8 8 16-18"/></svg>
+        <h2>All done for today</h2>
+        <p id="done-sub"></p>
+        <dl class="tiles">
+          <div class="tile"><dt>Studied today</dt><dd id="done-today">0</dd></div>
+          <div class="tile"><dt>Day streak</dt><dd id="done-streak">0</dd></div>
+          <div class="tile"><dt>Due tomorrow</dt><dd id="done-tomorrow">0</dd></div>
+        </dl>
+        <button class="primary-btn" type="button" id="more"></button>
+      </div>
+    </section>
+
+    <!-- List -->
+    <section class="view" id="view-list" aria-labelledby="h-list" hidden>
+      <h1 id="h-list">List</h1>
+      <div class="toolbar">
+        <input type="search" id="search" autocomplete="off" spellcheck="false" placeholder="Search places or capitals" aria-label="Search places or capitals">
+        <select id="topic-filter" aria-label="Filter by topic">
+          <option value="all">All topics</option>
+        </select>
+        <select id="filter" aria-label="Filter by status">
+          <option value="all">Any status</option>
+          <option value="new">Not seen</option>
+          <option value="learning">Learning</option>
+          <option value="young">Young</option>
+          <option value="mature">Mastered</option>
+        </select>
+      </div>
+      <p class="muted" id="list-count" role="status"></p>
+      <ol class="place-list" id="place-list"></ol>
+      <div id="list-sentinel"></div>
+    </section>
+
+    <!-- Progress -->
+    <section class="view" id="view-progress" aria-labelledby="h-progress" hidden>
+      <h1 id="h-progress">Progress</h1>
+      <dl class="tiles">
+        <div class="tile"><dt>Day streak</dt><dd id="st-streak">0</dd></div>
+        <div class="tile"><dt>Places learned</dt><dd id="st-learned">0</dd></div>
+        <div class="tile"><dt>Mastered</dt><dd id="st-mature">0</dd></div>
+        <div class="tile"><dt>Total reviews</dt><dd id="st-reviews">0</dd></div>
+      </dl>
+
+      <section class="panel" aria-labelledby="h-mastery">
+        <h2 id="h-mastery">Mastery</h2>
+        <div class="mastery-bar" id="mastery-bar" aria-hidden="true"></div>
+        <ul class="legend" id="mastery-legend"></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="h-topics">
+        <h2 id="h-topics">By topic</h2>
+        <ul class="topic-bars" id="topic-bars"></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="h-forecast">
+        <h2 id="h-forecast">Reviews due — next 14 days</h2>
+        <ol class="forecast" id="forecast"></ol>
+      </section>
+    </section>
+    <footer class="copyright">© 2026 Marc Cohen</footer>
+  </main>
+
+  <p class="toast" id="toast" role="status"></p>
+
+  <!-- Place preview (from the List) -->
+  <dialog id="preview" aria-labelledby="preview-name" closedby="any">
+    <div class="preview-map">
+      <svg class="map" id="map-preview" aria-hidden="true"></svg>
+    </div>
+    <div class="dialog-body preview-body">
+      <span class="kind" id="preview-kind"></span>
+      <h2 id="preview-name"></h2>
+      <p class="capital" id="preview-capital" hidden><span class="capital-label">Capital</span> <span id="preview-capital-name"></span></p>
+      <p class="muted" id="preview-note"></p>
+      <p class="preview-status" id="preview-status"></p>
+    </div>
+    <form method="dialog" class="dialog-foot">
+      <button class="primary-btn" autofocus>Close</button>
+    </form>
+  </dialog>
+
+  <!-- Settings -->
+  <dialog id="settings" aria-labelledby="settings-title" closedby="any">
+    <header class="dialog-head">
+      <h2 id="settings-title">Settings</h2>
+    </header>
+    <div class="dialog-body">
+      <fieldset class="field" id="topics">
+        <legend>What to study</legend>
+        <div class="checks" id="topic-checks"></div>
+        <p class="help">Turning a topic off pauses its cards; your progress on them is kept.</p>
+      </fieldset>
+
+      <fieldset class="field">
+        <legend>Appearance</legend>
+        <div class="segmented" id="scheme">
+          <label><input type="radio" name="scheme" value="light dark"><span id="scheme-system">System</span></label>
+          <label><input type="radio" name="scheme" value="light"><span>Light</span></label>
+          <label><input type="radio" name="scheme" value="dark"><span>Dark</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="field">
+        <legend>Spaced repetition</legend>
+        <div class="row">
+          <label for="newPerDay">New cards per day</label>
+          <input type="number" id="newPerDay" min="0" max="100" step="1" inputmode="numeric">
+        </div>
+        <div class="row">
+          <label for="maxReviews">Maximum reviews per day</label>
+          <input type="number" id="maxReviews" min="10" max="500" step="10" inputmode="numeric">
+        </div>
+        <fieldset class="choices" id="order">
+          <legend>New card order</legend>
+          <label class="choice">
+            <input type="radio" name="order" value="mixed" aria-describedby="order-mixed-help">
+            <span class="choice-title">Mixed <span class="tag">Recommended</span></span>
+            <span class="choice-help" id="order-mixed-help">Each day blends famous places with less familiar ones, weighted toward the famous. Suits most people.</span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="order" value="known" aria-describedby="order-known-help">
+            <span class="choice-title">Best known first</span>
+            <span class="choice-help" id="order-known-help">Starts with places like France, the Pacific Ocean and the Sahara, and works toward the obscure. Best if geography is new to you.</span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="order" value="random" aria-describedby="order-random-help">
+            <span class="choice-title">Random</span>
+            <span class="choice-help" id="order-random-help">Any place from the whole deck, each equally likely. For when you already know the famous ones.</span>
+          </label>
+        </fieldset>
+        <div class="row">
+          <label for="pace">Review pace</label>
+          <select id="pace">
+            <option value="0.8">Intensive (shorter gaps)</option>
+            <option value="1">Standard</option>
+            <option value="1.3">Relaxed (longer gaps)</option>
+          </select>
+        </div>
+        <p class="help">Scales the gap between reviews. Assumes you study once a day.</p>
+      </fieldset>
+
+      <fieldset class="field">
+        <legend>Your data</legend>
+        <p class="help">Progress is stored only in this browser.</p>
+        <div class="btn-row">
+          <button type="button" class="soft-btn" id="export">Export backup</button>
+          <button type="button" class="soft-btn" id="import">Import backup</button>
+          <input type="file" id="import-file" accept="application/json,.json" hidden>
+          <button type="button" class="soft-btn danger" command="show-modal" commandfor="reset">Reset progress</button>
+        </div>
+        <button type="button" class="soft-btn" id="install" hidden>Install app</button>
+      </fieldset>
+    </div>
+    <form method="dialog" class="dialog-foot">
+      <button class="primary-btn">Done</button>
+    </form>
+  </dialog>
+
+  <!-- About -->
+  <dialog id="about" aria-labelledby="about-title" closedby="any">
+    <header class="dialog-head">
+      <h2 id="about-title">About Geo</h2>
+    </header>
+    <div class="dialog-body about">
+      <section>
+        <h3>What it is</h3>
+        <p>Geo is a free flashcard app for learning where things are. Each card shows a small map with one place highlighted: a country, an ocean or sea, a lake, an island, a mountain range, a desert or a region. Name it, then flip the card to check. For countries, the back also shows the capital, marked on the map.</p>
+      </section>
+      <section>
+        <h3>What you can do</h3>
+        <ul>
+          <li>Learn a few new places each day: 10 by default, adjustable in Settings.</li>
+          <li>Choose what to study: countries and capitals, oceans, seas and lakes, islands, or mountains, deserts and regions. Mix them or focus on one.</li>
+          <li>Choose the order new places come in: Mixed (the default), Best known first, or Random.</li>
+          <li>Review each place just before you’re likely to forget it. This is called spaced repetition: places you know well come back less and less often.</li>
+          <li>Rate each card Again, Hard, Good or Easy. Your answer decides when you’ll see it next.</li>
+          <li>Browse or search all <span id="about-count">the</span> places in the List, and tap any of them to see it on the map.</li>
+          <li>Follow your streak, mastery and upcoming reviews in Progress.</li>
+          <li>Use it offline, or install it on your phone or computer. There’s no account: your progress stays in this browser, and you can export a backup from Settings.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>About the maps</h3>
+        <p>The maps are drawn from <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>, a public-domain map dataset. Borders follow Natural Earth’s convention of showing who controls an area on the ground, which is not an endorsement of any claim. Shapes for seas, mountain ranges, deserts and regions are approximate: their edges are rarely agreed precisely. Capitals were checked in November 2026.</p>
+      </section>
+      <section>
+        <h3>Credits</h3>
+        <p>Map data: Natural Earth (public domain). Map projection: <a href="https://d3js.org/d3-geo" target="_blank" rel="noopener">d3-geo</a> and <a href="https://github.com/topojson/topojson-client" target="_blank" rel="noopener">topojson-client</a> (ISC license). Card selection, names, notes and capitals were written for this app.</p>
+      </section>
+    </div>
+    <form method="dialog" class="dialog-foot">
+      <button class="primary-btn" autofocus>Close</button>
+    </form>
+  </dialog>
+
+  <dialog id="reset" aria-labelledby="reset-title" class="small">
+    <div class="dialog-body">
+      <h2 id="reset-title">Reset your progress?</h2>
+      <p>This erases your review history and schedule on this device. It cannot be undone.</p>
+    </div>
+    <form method="dialog" class="dialog-foot">
+      <button class="soft-btn" value="cancel" autofocus>Cancel</button>
+      <button class="soft-btn danger solid" value="reset">Erase progress</button>
+    </form>
+  </dialog>
+
+  <noscript><p class="load-error">Geo needs JavaScript to run.</p></noscript>
+</body>
+</html>
