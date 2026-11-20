@@ -1,6 +1,7 @@
 // Draws a card's map: a globe (orthographic projection) turned to face the
-// feature and zoomed to fit it, with the feature highlighted. Small features get
-// a ring so they can be spotted. Output is an SVG string set on the target <svg>.
+// feature and zoomed to fit it, with the feature highlighted: countries, islands
+// and lakes in solid color, approximate areas (seas, ranges, deserts, regions) as
+// a tinted outline. Small features get a ring so they can be spotted. Output is an SVG string set on the target <svg>.
 import { geoOrthographic, geoPath, geoGraticule10, geoDistance, feature, mesh } from './vendor/geo.js';
 
 let world = null;
@@ -43,10 +44,45 @@ export async function loadMap(mapUrl, shapesUrl) {
 
 // Kinds drawn beneath the land, so the coastline always comes from the land layer.
 const SEA_KINDS = new Set(['ocean', 'sea', 'gulf', 'bay', 'strait', 'channel', 'estuary', 'reef']);
+// Kinds whose shapes are approximate areas rather than real coastlines or borders:
+// shown as a light tint inside a smoothed outline, not a solid fill.
+const AREA_KINDS = new Set([...SEA_KINDS, 'islands', 'continent', 'mountains', 'desert', 'peninsula', 'region',
+  'plain', 'plateau', 'basin', 'valley', 'wetland', 'delta', 'isthmus', 'canyon']);
 const graticule = geoGraticule10();
-const MIN_RADIUS = 3;      // degrees: the closest the map zooms in
+const MIN_RADIUS = 3.6;    // degrees: the closest the map zooms in
+const FIT = 0.5;           // the share of the frame's half-height the feature's radius fills
 let clipCount = 0;
 const RING_BELOW = 16;     // px: features smaller than this get a ring
+
+/** Projected rings of a shape, as point arrays (what geoPath would draw). */
+function projectedRings(projection, object) {
+  const rings = [];
+  let ring = null;
+  geoPath(projection, {
+    moveTo(x, y) { ring = [[x, y]]; rings.push(ring); },
+    lineTo(x, y) { ring.push([x, y]); },
+    closePath() {},
+    arc() {},
+  })(object);
+  return rings.filter((r) => r.length > 2);
+}
+
+/** Round off a closed ring's corners (Chaikin's corner cutting, twice). */
+function chaikin(ring, rounds = 2) {
+  let pts = ring;
+  for (let n = 0; n < rounds; n++) {
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const [x0, y0] = pts[i], [x1, y1] = pts[(i + 1) % pts.length];
+      out.push([0.75 * x0 + 0.25 * x1, 0.75 * y0 + 0.25 * y1], [0.25 * x0 + 0.75 * x1, 0.25 * y0 + 0.75 * y1]);
+    }
+    pts = out;
+  }
+  return pts;
+}
+
+const smoothPath = (projection, object) => projectedRings(projection, object)
+  .map((r) => `M${chaikin(r).map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L')}Z`).join('');
 
 function shapeOf(card) {
   if (card.iso) {
@@ -67,8 +103,8 @@ export function drawMap(svg, card, { capital = false } = {}) {
   const half = Math.min(W, H) / 2;
   // v: a wider view for specks of land far out at sea, so a coast is in sight.
   const r = Math.max(MIN_RADIUS, card.v ?? card.r);
-  // Fit the feature's radius into ~60% of the frame, leaving some context; never smaller than the whole globe.
-  const fit = (half * 0.6) / Math.sin((Math.min(r, 89) * Math.PI) / 180);
+  // Fit the feature's radius into half the frame, leaving context around it; never smaller than the whole globe.
+  const fit = (half * FIT) / Math.sin((Math.min(r, 89) * Math.PI) / 180);
   const scale = Math.max(half * 0.94, fit);
   const projection = geoOrthographic()
     .rotate([-card.c[0], -card.c[1]])
@@ -83,23 +119,28 @@ export function drawMap(svg, card, { capital = false } = {}) {
   const spherePath = geoPath(projection);
   const shape = shapeOf(card);
   const sea = SEA_KINDS.has(card.kind);
-  const group = card.kind === 'islands';
+  const area = AREA_KINDS.has(card.kind);
   const zoomed = scale > half * 1.6;
 
   const parts = [];
   parts.push(`<path class="m-sphere" d="${spherePath({ type: 'Sphere' })}"/>`);
   parts.push(`<path class="m-grid" d="${path(graticule)}"/>`);
-  if (sea && shape) parts.push(`<path class="m-hl m-hl-sea" d="${path(shape) ?? ''}"/>`);
+  const zone = area && shape ? smoothPath(framed, shape) : '';
+  // An area is a wide outline with an opaque fill on top: only the outer half of
+  // the outline shows, and seams between the pieces an area is made of vanish.
+  const zoneOf = (cls) => `<path class="m-zone-edge" d="${zone}"/><path class="m-zone ${cls}" d="${zone}"/>`;
+  // Water areas sit under the land, so the coast hides their rough landward edges.
+  if (sea && zone) parts.push(zoneOf('water'));
   parts.push(`<path class="m-land" d="${path(world.land) ?? ''}"/>`);
   parts.push(`<path class="m-lake" d="${path(world.lakes) ?? ''}"/>`);
-  if (group && shape) {
-    // Island groups are rough outlines around the islands: shade the area, and
-    // pick out the land inside it.
+  if (card.kind === 'islands' && zone) {
+    // Island groups: the outline around them, and the land inside it picked out.
     const id = `clip-${++clipCount}`;
-    const d = path(shape) ?? '';
-    parts.splice(2, 0, `<path class="m-area" d="${d}"/>`);
-    parts.push(`<clipPath id="${id}"><path d="${d}"/></clipPath><path class="m-hl m-hl-land" clip-path="url(#${id})" d="${path(world.land) ?? ''}"/>`);
-  } else if (!sea && shape) {
+    parts.push(zoneOf('land'));
+    parts.push(`<clipPath id="${id}"><path d="${zone}"/></clipPath><path class="m-hl m-hl-land" clip-path="url(#${id})" d="${path(world.land) ?? ''}"/>`);
+  } else if (!sea && zone) {
+    parts.push(zoneOf('land'));
+  } else if (!area && shape) {
     parts.push(`<path class="m-hl" d="${path(shape) ?? ''}"/>`);
   }
   parts.push(`<path class="m-border${zoomed ? ' zoomed' : ''}" d="${path(world.borders) ?? ''}"/>`);

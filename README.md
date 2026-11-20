@@ -68,7 +68,8 @@ capital and exits non-zero naming anything it couldn't find.
 A few water features exist in Natural Earth only as label points (Drake Passage,
 Luzon Strait, Scotia Sea) or not at all (Strait of Hormuz, Bering Strait); those are
 hand-drawn outlines in `deck.mjs`. They're drawn under the land, so a rough outline
-is clipped to the real coast. The Southern Ocean is everything south of 60°S.
+is clipped to the real coast. The Southern Ocean is everything south of 60°S, and the
+Arctic Ocean everything north of 66°N.
 
 To rebuild the vendored map library:
 
@@ -82,8 +83,12 @@ build gives each card a center and an angular radius covering its main parts
 The app zooms to fit that radius, never closer than 3°, and never further out than the
 whole globe. Specks of land far out at sea get a wider view (`v`) reaching to the
 nearest sizeable land, so there's a coast to orient by. Anything under 16px, and every
-strait, gets a ring. Island groups are rough outlines in Natural Earth, so they're
-shaded as an area with the islands inside picked out.
+strait, gets a ring. Countries, islands and lakes have real outlines and are filled
+solid. Everything else (seas, ranges, deserts, regions, island groups) is an
+approximate area in Natural Earth, so it's drawn as a smoothed outline around a light
+fill: a wide outline with the fill on top, which hides the seams where an area is
+stitched from several pieces (an ocean and its seas). Island groups also pick out the
+land inside their outline.
 
 ## Updating
 

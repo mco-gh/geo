@@ -129,7 +129,7 @@ for (const [topic, list] of groups) {
     // How far the map should show: the feature, or out to the nearest sizeable land.
     const reach = distanceToBigLand(card.c);
     if (reach > card.r) card.v = Math.round(Math.max(card.r, Math.min(25, reach * 1.15 + 1)) * 10) / 10;
-    if (topic !== 'countries') shapes.push({ feature: { type: 'Feature', properties: { id }, geometry }, r: card.r });
+    if (topic !== 'countries') shapes.push({ id, parts: features.map((f) => ({ type: 'Feature', properties: { id }, geometry: f.geometry })), r: card.r });
     deck.push(card);
   }
 }
@@ -150,13 +150,16 @@ const fc = (features) => JSON.stringify({ type: 'FeatureCollection', features })
 writeFileSync(join(tmp, 'countries.json'), fc(countries.map((f) => ({ type: 'Feature', properties: { id: f.properties.ADM0_A3 }, geometry: f.geometry }))));
 writeFileSync(join(tmp, 'lakes.json'), fc(lakes.filter((f) => f.properties.scalerank === 0 && geoArea(f.geometry) > 2e-6).map((f) => ({ type: 'Feature', properties: {}, geometry: f.geometry }))));
 // Each card shape is drawn at a size set by its radius, so thin it to match:
-// about 1/250 of its radius (in meters), but never coarser than needed up close.
+// about 1/300 of its radius (in meters), but never coarser than needed up close.
 const thinned = [];
-for (const { feature, r } of shapes) {
-  const interval = Math.round((Math.max(3, Math.min(r, 90)) * 111_000) / 150);
-  const out = await mapshaper.applyCommands(`-i in.json -simplify interval=${interval} keep-shapes -o out.json format=geojson`, { 'in.json': fc([feature]) });
+for (const { id, parts, r } of shapes) {
+  const interval = Math.round((Math.max(3, Math.min(r, 90)) * 111_000) / 300);
+  // Shapes stitched from several sources (an ocean and its seas) become one outline.
+  const dissolve = parts.length > 1 ? `-dissolve2 id gap-fill-area=2000km2` : '';
+  const out = await mapshaper.applyCommands(`-i in.json ${dissolve} -simplify interval=${interval} keep-shapes -o out.json format=geojson`, { 'in.json': fc(parts) });
   // Drop islets too small to see at this size, unless that would leave nothing.
   const f = JSON.parse(out['out.json']).features[0];
+  if (parts.length === 1 && JSON.parse(out['out.json']).features.length !== 1) errors.push(`shape lost: ${id}`);
   const min = 4 * (interval / 6_371_000) ** 2;
   const polys = polysOf(f.geometry).map(rewind).sort((p, q) => geoArea({ type: 'Polygon', coordinates: q }) - geoArea({ type: 'Polygon', coordinates: p }));
   const big = polys.filter((p) => geoArea({ type: 'Polygon', coordinates: p }) >= min);
