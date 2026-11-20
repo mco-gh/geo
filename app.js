@@ -435,8 +435,8 @@ const darkQuery = matchMedia('(prefers-color-scheme: dark)');
 function setScheme(value) {
   schemeMeta.content = value;
   try {
-    if (value === 'light dark') localStorage.removeItem(KEYS.scheme);
-    else localStorage.setItem(KEYS.scheme, JSON.stringify(value));
+    // Saved even when it's System: with nothing saved, the app starts in Light.
+    localStorage.setItem(KEYS.scheme, JSON.stringify(value));
   } catch { /* theme still applies for this visit */ }
   syncSchemeControl();
 }
@@ -608,7 +608,7 @@ function wireEvents() {
   // Stay in sync with other tabs, and roll over to a new day while left open.
   addEventListener('storage', (e) => {
     if (e.key === KEYS.scheme) {
-      try { schemeMeta.content = JSON.parse(e.newValue) ?? 'light dark'; } catch { schemeMeta.content = 'light dark'; }
+      try { schemeMeta.content = JSON.parse(e.newValue) ?? 'light'; } catch { schemeMeta.content = 'light'; }
       syncSchemeControl();
     }
     if (e.key === KEYS.progress && deck.length) { progress = loadProgress(); refreshAll(); }
